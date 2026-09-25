@@ -42,8 +42,8 @@ if submit_button or qr_data:
     qr_width, qr_height = qr_img.size
 
     # 2. Setup Canvas Margins for Top & Bottom Text
-    top_padding = font_size + 20 if top_text else 10
-    bottom_padding = font_size + 20 if bottom_text else 10
+    top_padding = font_size + 10 if top_text else 5
+    bottom_padding = font_size + 10 if bottom_text else 5
 
     total_width = qr_width
     total_height = qr_height + top_padding + bottom_padding

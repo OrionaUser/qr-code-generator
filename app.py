@@ -1,4 +1,5 @@
 import io
+import os
 import urllib.request
 import qrcode
 import streamlit as st
@@ -10,23 +11,23 @@ st.title("QR Code Generator")
 st.caption("Generate a plain text QR code with header and footer labels")
 
 
-# Helper function to get scalable TTF font on any platform (Windows, Linux, Streamlit Cloud)
+# Function to ensure a scalable TTF font file exists locally
 @st.cache_resource
-def load_scalable_font():
-    font_url = "https://github.com/google/fonts/raw/main/ofl/opensans/OpenSans%5Bwdth%2Cwght%5D.ttf"
-    try:
-        # Try local fonts first
-        return "arial.ttf"
-    except Exception:
-        pass
+def get_font_path():
+    font_filename = "DejaVuSans-Bold.ttf"
+    if not os.path.exists(font_filename):
+        font_url = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans-Bold.ttf"
+        try:
+            urllib.request.urlretrieve(font_url, font_filename)
+        except Exception as e:
+            st.error(f"Failed to download default font: {e}")
+            return None
+    return font_filename
 
-    # Download a standard TTF font if local font is missing
-    font_bytes = urllib.request.urlopen(font_url).read()
-    return io.BytesIO(font_bytes)
 
+font_path = get_font_path()
 
-font_source = load_scalable_font()
-
+# Main Controls Form
 with st.form("qr_form"):
     top_text = st.text_input("Top Text (Header)", value="SCAN ME")
     qr_data = st.text_area(
@@ -63,17 +64,25 @@ if submit_button or qr_data:
     ).convert("RGB")
     qr_width, qr_height = qr_img.size
 
-    # Load scalable font with the selected size
-    try:
-        font = ImageFont.truetype("arial.ttf", font_size)
-    except Exception:
-        font = ImageFont.truetype(font_source, font_size)
+    # Load font using the cached local font path
+    if font_path and os.path.exists(font_path):
+        font = ImageFont.truetype(font_path, font_size)
+    else:
+        font = ImageFont.load_default()
 
-    # Calculate Text Dimensions
+    # Calculate Text Dimensions accurately
     dummy_draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
 
-    top_bbox = dummy_draw.textbbox((0, 0), top_text, font=font) if top_text else (0, 0, 0, 0)
-    bottom_bbox = dummy_draw.textbbox((0, 0), bottom_text, font=font) if bottom_text else (0, 0, 0, 0)
+    top_bbox = (
+        dummy_draw.textbbox((0, 0), top_text, font=font)
+        if top_text
+        else (0, 0, 0, 0)
+    )
+    bottom_bbox = (
+        dummy_draw.textbbox((0, 0), bottom_text, font=font)
+        if bottom_text
+        else (0, 0, 0, 0)
+    )
 
     top_text_w = top_bbox[2] - top_bbox[0]
     top_text_h = top_bbox[3] - top_bbox[1]
@@ -81,40 +90,36 @@ if submit_button or qr_data:
     bottom_text_w = bottom_bbox[2] - bottom_bbox[0]
     bottom_text_h = bottom_bbox[3] - bottom_bbox[1]
 
-    # Keep a clear border around the complete exported QR image.
-    canvas_padding = 24
-    text_width = max(top_text_w, bottom_text_w)
-    total_width = max(qr_width, text_width) + (canvas_padding * 2)
+    # Calculate Canvas Dimensions
+    total_width = max(qr_width, top_text_w + 20, bottom_text_w + 20)
 
-    top_section = (top_text_h + top_gap) if top_text else 0
-    bottom_section = (bottom_text_h + bottom_gap) if bottom_text else 0
-    qr_y = canvas_padding + top_section
-    total_height = (
-        canvas_padding + top_section + qr_height + bottom_section + canvas_padding
-    )
+    top_padding = (top_text_h + top_gap + 10) if top_text else 10
+    bottom_padding = (bottom_text_h + bottom_gap + 10) if bottom_text else 10
 
-    # Create White Canvas
+    total_height = qr_height + top_padding + bottom_padding
+
+    # Create Canvas
     canvas = Image.new("RGB", (total_width, total_height), "white")
 
     # Center QR Code Horizontally
     qr_x = (total_width - qr_width) // 2
-    canvas.paste(qr_img, (qr_x, qr_y))
+    canvas.paste(qr_img, (qr_x, top_padding))
 
     draw = ImageDraw.Draw(canvas)
 
     # 2. Render Top Text
     if top_text:
         x = (total_width - top_text_w) // 2
-        y = canvas_padding - top_bbox[1]
-        draw.text((x - top_bbox[0], y), top_text, fill="black", font=font)
+        y = top_padding - top_text_h - top_gap
+        draw.text((x, max(0, y)), top_text, fill="black", font=font)
 
     # 3. Render Bottom Text
     if bottom_text:
         x = (total_width - bottom_text_w) // 2
-        y = qr_y + qr_height + bottom_gap - bottom_bbox[1]
-        draw.text((x - bottom_bbox[0], y), bottom_text, fill="black", font=font)
+        y = top_padding + qr_height + bottom_gap
+        draw.text((x, y), bottom_text, fill="black", font=font)
 
-    # 4. Display & Download
+    # 4. Display & Download Button
     st.image(canvas, caption="Generated QR Code", use_container_width=False)
 
     buf = io.BytesIO()

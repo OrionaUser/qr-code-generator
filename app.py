@@ -30,6 +30,7 @@ with st.form("qr_form"):
         value="Type your plain text content here...",
     )
     bottom_text = st.text_input("Bottom Text (Footer)", value="ToolSphere")
+    download_format = st.selectbox("Download Format", ["PNG", "JPG", "EPS"])
 
     st.subheader("Layout & Sizing")
     col1, col2 = st.columns(2)
@@ -121,13 +122,19 @@ if submit_button or qr_data:
     # 4. Display & Download Button
     st.image(canvas, caption="Generated QR Code", use_container_width=False)
 
+    image_format, file_extension, mime_type = {
+        "PNG": ("PNG", "png", "image/png"),
+        "JPG": ("JPEG", "jpg", "image/jpeg"),
+        "EPS": ("EPS", "eps", "application/postscript"),
+    }[download_format]
+
     buf = io.BytesIO()
-    canvas.save(buf, format="PNG")
+    canvas.save(buf, format=image_format)
     byte_im = buf.getvalue()
 
     st.download_button(
-        label="Download PNG",
+        label=f"Download {download_format}",
         data=byte_im,
-        file_name="qr_code.png",
-        mime="image/png",
+        file_name=f"qr_code.{file_extension}",
+        mime=mime_type,
     )
